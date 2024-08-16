@@ -270,7 +270,11 @@ func NewTypecast(scope *types.Scope, imports util.ImportNames, t types.Type, inn
 			}
 		}
 	case *types.Basic:
-		expr = fmt.Sprintf("(%s)", t.String())
+		if isPtr {
+			expr = fmt.Sprintf("(%s)", t.String())
+		} else {
+			expr = t.String()
+		}
 	default:
 		return nil, false
 	}

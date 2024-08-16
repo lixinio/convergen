@@ -79,7 +79,6 @@ func (client *Client) ToBiz2(dst *biz.Client) {
 }
 
 // 忽略字段
-// 用自定义函数转换
 // 字段映射
 // 转换
 func NewClientArgFromBiz(dst *Client, src *biz.Client) (err error) {
@@ -88,7 +87,7 @@ func NewClientArgFromBiz(dst *Client, src *biz.Client) (err error) {
 	}
 
 	dst.ID = src.ID
-	dst.Status = Int8(src.Status)
+	dst.Status = int8(src.Status)
 	dst.StatusPtr = (*int32)(src.StatusPtr)
 	dst.StructPtr = (*StructField2)(src.StructPtr)
 	dst.StringPtr = (*String)(src.StringPtr)
