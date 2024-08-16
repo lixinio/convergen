@@ -31,8 +31,6 @@ type ConvergenArg interface {
 	// :typecast
 	// 忽略字段
 	// :skip ClientSecret
-	// 用自定义函数转换
-	// :conv Int8 Status
 	// 字段映射
 	// :map CreateTime CreateAt
 	// :method Local UpdateTime
