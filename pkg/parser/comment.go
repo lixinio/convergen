@@ -263,7 +263,26 @@ func (p *Parser) lookupConverterFunc(funcName string, pos token.Pos) (argType, r
 		err = logger.Errorf("%v: %v isn't a function", p.fset.Position(pos), funcName)
 		return
 	}
-	if sig.Params().Len() != 1 || sig.Results().Len() < 1 || 2 < sig.Results().Len() {
+
+	// 支持convFunc(src Src, others ...Other)的形式
+	if sig.Params().Len() != 1 {
+		if sig.Params().Len() != 2 {
+			err = logger.Errorf(
+				"%v: function %v cannot use as a converter, params num is %d",
+				p.fset.Position(pos), funcName, sig.Params().Len(),
+			)
+			return
+		}
+		if !sig.Variadic() {
+			err = logger.Errorf(
+				"%v: function %v cannot use as a converter, last param must be variadic",
+				p.fset.Position(pos), funcName,
+			)
+			return
+		}
+	}
+
+	if sig.Results().Len() < 1 || 2 < sig.Results().Len() {
 		err = logger.Errorf("%v: function %v cannot use as a converter", p.fset.Position(pos), funcName)
 		return
 	}

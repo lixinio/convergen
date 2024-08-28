@@ -48,6 +48,7 @@ func (client *Client) ToBiz2(dst *biz.Client) {
 
 	dst.ID = client.ID
 	dst.Status = biz.ClentStatus(client.Status)
+	dst.Status2 = VariadicClientStatus(client.Status2)
 	dst.StatusPtr = (*biz.ClentStatus)(client.StatusPtr)
 	dst.StructPtr = (*biz.StructField)(client.StructPtr)
 	dst.StringPtr = (*string)(client.StringPtr)
@@ -88,6 +89,7 @@ func NewClientArgFromBiz(dst *Client, src *biz.Client) (err error) {
 
 	dst.ID = src.ID
 	dst.Status = int8(src.Status)
+	dst.Status2 = VariadicInt8(src.Status2)
 	dst.StatusPtr = (*int32)(src.StatusPtr)
 	dst.StructPtr = (*StructField2)(src.StructPtr)
 	dst.StringPtr = (*String)(src.StringPtr)

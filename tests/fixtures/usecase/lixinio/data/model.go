@@ -16,6 +16,7 @@ type (
 type Client struct {
 	ID           int64
 	Status       int8
+	Status2      int8 // 转换函数包含可变参数: convFunc(src Src, others ...Other)
 	StatusPtr    *int32
 	StructPtr    *StructField2
 	StringPtr    *String
