@@ -11,6 +11,7 @@ type StructField struct {
 type Client struct {
 	ID           int64
 	Status       ClentStatus
+	Status2      ClentStatus
 	StatusPtr    *ClentStatus
 	StructPtr    *StructField
 	StringPtr    *string

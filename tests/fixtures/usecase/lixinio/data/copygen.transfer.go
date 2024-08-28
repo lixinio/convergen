@@ -15,7 +15,15 @@ func Int8(status biz.ClentStatus) int8 {
 	return int8(status)
 }
 
+func VariadicInt8(status biz.ClentStatus, ints ...int) int8 {
+	return int8(status)
+}
+
 func ClientStatus(status int8) biz.ClentStatus {
+	return biz.ClentStatus(status)
+}
+
+func VariadicClientStatus(status int8, ints ...int) biz.ClentStatus {
 	return biz.ClentStatus(status)
 }
 
@@ -81,6 +89,7 @@ func (client *Client) ToBiz() (dst *biz.Client) {
 	dst = &biz.Client{}
 	dst.ID = client.ID
 	dst.Status = biz.ClentStatus(client.Status)
+	dst.Status2 = VariadicClientStatus(client.Status2)
 	dst.StatusPtr = (*biz.ClentStatus)(client.StatusPtr)
 	dst.StructPtr = (*biz.StructField)(client.StructPtr)
 	dst.StringPtr = (*string)(client.StringPtr)
@@ -125,6 +134,7 @@ func NewClientFromBiz(src *biz.Client) (dst *Client, err error) {
 	dst = &Client{}
 	dst.ID = src.ID
 	dst.Status = Int8(src.Status)
+	dst.Status2 = VariadicInt8(src.Status2)
 	dst.StatusPtr = (*int32)(src.StatusPtr)
 	dst.StructPtr = (*StructField2)(src.StructPtr)
 	dst.StringPtr = (*String)(src.StringPtr)

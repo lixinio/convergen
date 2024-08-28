@@ -16,7 +16,15 @@ func Int8(status biz.ClentStatus) int8 {
 	return int8(status)
 }
 
+func VariadicInt8(status biz.ClentStatus, ints ...int) int8 {
+	return int8(status)
+}
+
 func ClientStatus(status int8) biz.ClentStatus {
+	return biz.ClentStatus(status)
+}
+
+func VariadicClientStatus(status int8, ints ...int) biz.ClentStatus {
 	return biz.ClentStatus(status)
 }
 
@@ -45,6 +53,7 @@ type Convergen interface {
 	// 忽略字段
 	// :skip ClientSecret
 	// 也可以这样 :conv ClientStatus Status
+	// :conv VariadicClientStatus Status2
 	// 字段映射
 	// :map CreateAt CreateTime
 	// :map IntSlice IntSlice2
@@ -58,6 +67,7 @@ type Convergen interface {
 	// :skip ClientSecret
 	// 用自定义函数转换
 	// :conv Int8 Status
+	// :conv VariadicInt8 Status2
 	// 字段映射
 	// :map CreateTime CreateAt
 	// :method Local UpdateTime

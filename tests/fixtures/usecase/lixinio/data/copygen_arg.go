@@ -19,6 +19,7 @@ type ConvergenArg interface {
 	// :recv client Client
 	// 忽略字段
 	// :skip ClientSecret
+	// :conv VariadicClientStatus Status2
 	// 也可以这样 :conv ClientStatus Status
 	// 字段映射
 	// :map CreateAt CreateTime
@@ -31,6 +32,7 @@ type ConvergenArg interface {
 	// :typecast
 	// 忽略字段
 	// :skip ClientSecret
+	// :conv VariadicInt8 Status2
 	// 字段映射
 	// :map CreateTime CreateAt
 	// :method Local UpdateTime
