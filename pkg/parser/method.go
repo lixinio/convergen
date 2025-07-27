@@ -28,6 +28,7 @@ func (p *Parser) parseMethods(intf *intfEntry) ([]*model.MethodEntry, error) {
 	mset := types.NewMethodSet(iface)
 	methods := make([]*model.MethodEntry, 0)
 	for i := 0; i < mset.Len(); i++ {
+		// 解析interface里面的单个function
 		method, err := p.parseMethod(mset.At(i).Obj(), intf.opts)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stderr, err.Error())
@@ -42,6 +43,7 @@ func (p *Parser) parseMethods(intf *intfEntry) ([]*model.MethodEntry, error) {
 	return methods, nil
 }
 
+// 解析interface里面的单个function
 // parseMethod parses a single method in an interface type.
 func (p *Parser) parseMethod(method types.Object, opts option.Options) (*model.MethodEntry, error) {
 	signature, ok := method.Type().(*types.Signature)
@@ -58,6 +60,7 @@ func (p *Parser) parseMethod(method types.Object, opts option.Options) (*model.M
 
 	docComment, cleanUp := util.GetDocCommentOn(p.file, method)
 	notations := util.ExtractMatchComments(docComment, reNotation)
+	// 解析interface里面的单个function注释中， 所有conv选项
 	err := p.parseNotationInComments(notations, option.ValidOpsMethod, &opts)
 	if err != nil {
 		return nil, err

@@ -134,5 +134,11 @@ func (g *Generator) FuncToString(f *model.Function) string {
 		sb.WriteString("\nreturn\n")
 	}
 	sb.WriteString("}\n\n")
+
+	if f.PostAssignment != nil {
+		sb.WriteString(f.PostAssignment.String())
+	}
+
+	sb.WriteString("\n")
 	return sb.String()
 }

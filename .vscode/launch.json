@@ -13,10 +13,11 @@
             "env": {},
             "buildFlags": "-tags=debug",
             "args": [
-                "-suffix=transfer",
-                "tests/fixtures/usecase/lixinio/data/copygen.go"
+                "-suffix=gen",
+                "tests/fixtures/usecase/lixinio/data/copygen_property_mask.go"
             ],
-            "program": "${workspaceFolder}"
+            "program": "${workspaceFolder}",
+            "dlvFlags": ["--check-go-version=false"]
         }
     ]
 }

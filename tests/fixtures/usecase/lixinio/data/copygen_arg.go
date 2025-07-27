@@ -27,8 +27,8 @@ type ConvergenArg interface {
 	// 调用成员函数
 	// :method ToBiz Provider
 	// :method ToBiz Provider2 Provider3
-	// :method ToBiz Uris[]
-	ClientToBiz2(*Client) *biz.Client
+	// :method:err ToBiz Uris[]
+	ClientToBiz2(*Client) (*biz.Client, error)
 	// :typecast
 	// 忽略字段
 	// :skip ClientSecret

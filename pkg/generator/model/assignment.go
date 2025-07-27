@@ -12,6 +12,45 @@ type Assignment interface {
 	RetError() bool
 }
 
+// 不做任何加工处理
+type RawAssignment struct {
+	Raw string
+	Err bool
+}
+
+func (s RawAssignment) String() string {
+	return s.Raw
+}
+
+func (s RawAssignment) RetError() bool {
+	return s.Err
+}
+
+// 组合多个Assignment
+type RepeatAssignment struct {
+	Assignments []Assignment
+}
+
+func (s RepeatAssignment) String() string {
+	sb := strings.Builder{}
+	for _, as := range s.Assignments {
+		_, _ = sb.WriteString(as.String())
+	}
+
+	return sb.String()
+}
+
+func (s RepeatAssignment) RetError() bool {
+	// 任意一个Assignment返回错误， 总的Assignment就返回错误
+	for _, as := range s.Assignments {
+		if as.RetError() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // SkipField indicates that the field is skipped due to a :skip notation.
 type SkipField struct {
 	LHS string // LHS is the left-hand side of the skipped field.
@@ -34,6 +73,7 @@ func (s SkipField) RetError() bool {
 // NoMatchField indicates that the field is skipped while there was no matching fields or getters.
 type NoMatchField struct {
 	LHS string // LHS is the name of the field that doesn't match any fields or getters.
+	RHS string // 可选
 }
 
 // String returns the string representation of the no match field assignment.
@@ -41,6 +81,11 @@ func (s NoMatchField) String() string {
 	var sb strings.Builder
 	sb.WriteString("// no match: ")
 	sb.WriteString(s.LHS)
+	if s.RHS != "" {
+		sb.WriteString("( from left value '")
+		sb.WriteString(s.RHS)
+		sb.WriteString("')")
+	}
 	sb.WriteString("\n")
 	return sb.String()
 }

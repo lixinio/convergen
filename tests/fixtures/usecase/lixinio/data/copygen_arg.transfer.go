@@ -41,7 +41,7 @@ func (client *ClientRedirectUri) ToBiz2(dst *biz.ClientRedirectUri) {
 // 也可以这样 :conv ClientStatus Status
 // 字段映射
 // 调用成员函数
-func (client *Client) ToBiz2(dst *biz.Client) {
+func (client *Client) ToBiz2(dst *biz.Client) (err error) {
 	if client == nil {
 		return
 	}
@@ -68,7 +68,10 @@ func (client *Client) ToBiz2(dst *biz.Client) {
 		dst.Uris = make([]*biz.ClientRedirectUri, len(client.Uris))
 		for i, e := range client.Uris {
 			if e != nil {
-				dst.Uris[i] = e.ToBiz()
+				dst.Uris[i], err = e.ToBiz()
+				if err != nil {
+					return
+				}
 			}
 		}
 	}
@@ -77,6 +80,8 @@ func (client *Client) ToBiz2(dst *biz.Client) {
 		copy(dst.StringSlice, client.StringSlice)
 	}
 	dst.IntSlice2 = client.IntSlice
+
+	return
 }
 
 // 忽略字段

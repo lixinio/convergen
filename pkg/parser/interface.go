@@ -27,10 +27,13 @@ func (p *Parser) findConvergenEntries() ([]*intfEntry, error) {
 	scope := p.pkg.Types.Scope()
 	for _, name := range scope.Names() {
 		obj := scope.Lookup(name)
+		// 只解析pkg下面的interface， 不包括函数、struct等
 		_, ok := obj.Type().Underlying().(*types.Interface)
 		if !ok {
 			continue
 		}
+
+		// 排除其他文件
 		if p.srcPath != p.fset.Position(obj.Pos()).Filename {
 			// Skip other than the entry file.
 			continue
@@ -38,6 +41,7 @@ func (p *Parser) findConvergenEntries() ([]*intfEntry, error) {
 
 		docComment, cleanUp := util.GetDocCommentOn(p.file, obj)
 
+		// 如果名称是Convergen 或者有相关的注释
 		isTarget := obj.Name() == intfName || util.MatchComments(docComment, reConvergen)
 		if !isTarget {
 			continue

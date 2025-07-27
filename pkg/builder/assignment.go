@@ -47,7 +47,9 @@ func newAssignmentBuilder(p *FunctionBuilder, m *bmodel.MethodEntry, lhsVar, rhs
 }
 
 // build generates the code for the assignment.
-func (b *assignmentBuilder) build(lhs, rhs *types.Var) ([]gmodel.Assignment, error) {
+func (b *assignmentBuilder) build(lhs, rhs *types.Var, retError bool) (
+	[]gmodel.Assignment, gmodel.Assignment, error,
+) {
 	rootCopier := bmodel.NewCopier("", lhs.Type(), rhs.Type())
 	rootCopier.IsRoot = true
 	if b.opts.Receiver != "" {
@@ -59,25 +61,32 @@ func (b *assignmentBuilder) build(lhs, rhs *types.Var) ([]gmodel.Assignment, err
 
 	rootLHS := bmodel.NewRootNode(b.lhsVar.Name, lhs.Type())
 	rootRHS := bmodel.NewRootNode(b.rhsVar.Name, rhs.Type())
-	return b.dispatch(rootLHS, rootRHS)
+	return b.dispatch(rootLHS, rootRHS, retError)
 }
 
 // dispatch decides what type of assignment should be generated.
-func (b *assignmentBuilder) dispatch(lhs, rhs bmodel.Node) ([]gmodel.Assignment, error) {
+func (b *assignmentBuilder) dispatch(lhs, rhs bmodel.Node, retError bool) (
+	[]gmodel.Assignment, gmodel.Assignment, error,
+) {
 	lhsType := util.DerefPtr(lhs.ExprType())
 	rhsType := util.DerefPtr(rhs.ExprType())
 	if util.IsStructType(lhsType) && util.IsStructType(rhsType) {
-		return b.structToStruct(lhs, rhs)
+		return b.structToStruct(lhs, rhs, retError)
 	}
 
 	logger.Warnf("%v: no assignment %T to %T", b.fset.Position(b.methodPos), rhs.ExprType(), lhs.ExprType())
-	return []gmodel.Assignment{gmodel.NoMatchField{LHS: lhs.AssignExpr()}}, nil
+	return []gmodel.Assignment{gmodel.NoMatchField{LHS: lhs.AssignExpr()}}, nil, nil
 }
 
 // structToStruct generates code for a struct-to-struct assignment.
-func (b *assignmentBuilder) structToStruct(lhsStruct, rhsStruct bmodel.Node) ([]gmodel.Assignment, error) {
-	var err error
-	var assignments []gmodel.Assignment
+func (b *assignmentBuilder) structToStruct(lhsStruct, rhsStruct bmodel.Node, retError bool) (
+	[]gmodel.Assignment, gmodel.Assignment, error,
+) {
+	var (
+		err         error
+		assignments []gmodel.Assignment
+	)
+
 	bmodel.IterateStructFields(lhsStruct, func(lhsField bmodel.Node) (done bool) {
 		if !b.isStructFieldAccessible(lhsStruct, lhsField.ObjName()) {
 			return
@@ -90,7 +99,13 @@ func (b *assignmentBuilder) structToStruct(lhsStruct, rhsStruct bmodel.Node) ([]
 		}
 		return
 	})
-	return assignments, err
+
+	postAssignment, err := b.buildPostAssignment(lhsStruct, rhsStruct, retError)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return assignments, postAssignment, err
 }
 
 // matchStructFieldAndStruct matches a field in a struct with another struct
@@ -98,7 +113,9 @@ func (b *assignmentBuilder) structToStruct(lhsStruct, rhsStruct bmodel.Node) ([]
 // not, tries to match the field with a converter, name mapper or literal
 // setter. If none of these match, it falls back to the
 // structFieldAndStructGettersAndFields method.
-func (b *assignmentBuilder) matchStructFieldAndStruct(lhs bmodel.Node, rhs bmodel.Node) (gmodel.Assignment, error) {
+func (b *assignmentBuilder) matchStructFieldAndStruct(
+	lhs bmodel.Node, rhs bmodel.Node,
+) (gmodel.Assignment, error) {
 	if b.opts.ShouldSkip(lhs.MatcherExpr()) {
 		logger.Printf("%v: skip %v", b.fset.Position(b.methodPos), lhs.AssignExpr())
 		return gmodel.SkipField{LHS: lhs.AssignExpr()}, nil
@@ -130,6 +147,36 @@ func (b *assignmentBuilder) matchStructFieldAndStruct(lhs bmodel.Node, rhs bmode
 			// If there are more than one mapper exist for the lhs, the first one wins.
 			return gmodel.SimpleField{LHS: lhs.AssignExpr(), RHS: setter.Literal()}, nil
 		}
+	}
+
+	for _, converter := range b.opts.ParseMaskConverters {
+		if converter.Dst().Match(lhs.MatcherExpr(), true) {
+			// If there are more than one mapper exist for the lhs, the first one wins.
+			return b.createWithParseMask(lhs, rhs, converter)
+		}
+	}
+
+	assignments := []gmodel.Assignment{}
+	for _, converter := range b.opts.BuildMaskIgnores {
+		if converter.Dst().Match(lhs.MatcherExpr(), true) {
+			assignments = append(assignments, b.createWithBuildMaskIngore(converter))
+		}
+	}
+
+	for _, converter := range b.opts.BuildMaskConverters {
+		if converter.Dst().Match(lhs.MatcherExpr(), true) {
+			assignment, err := b.createWithBuildMask(lhs, rhs, converter)
+			if err != nil {
+				return nil, err
+			} else {
+				// Flag 到 PropertyMask 会重复多次
+				assignments = append(assignments, assignment)
+			}
+		}
+	}
+
+	if len(assignments) > 0 {
+		return &gmodel.RepeatAssignment{Assignments: assignments}, nil
 	}
 
 	return b.structFieldAndStructGettersAndFields(lhs, rhs)
@@ -183,7 +230,7 @@ func (b *assignmentBuilder) structFieldAndStructGettersAndFields(lhs bmodel.Node
 			if rhs.ObjNullable() {
 				nestStruct.NullCheckExpr = rhs.NullCheckExpr()
 			}
-			nestStruct.Contents, err = b.structToStruct(lhs, rhs)
+			nestStruct.Contents, _, err = b.structToStruct(lhs, rhs, false)
 			if err == nil && 0 < len(nestStruct.Contents) {
 				a = nestStruct
 			}
@@ -207,6 +254,121 @@ func (b *assignmentBuilder) structFieldAndStructGettersAndFields(lhs bmodel.Node
 
 	logger.Warnf("%v: no assignment for %v [%v]", methodPosStr, lhsExpr, b.imports.TypeName(lhs.ExprType()))
 	return gmodel.NoMatchField{LHS: lhsExpr}, nil
+}
+
+func (b *assignmentBuilder) createWithParseMask(
+	lhs, rhs bmodel.Node, mapper *option.MaskConverter,
+) (gmodel.Assignment, error) {
+	mappedNode := func() bmodel.Node {
+		root := rhs
+		for ; root.Parent() != nil; root = root.Parent() {
+		}
+
+		// 检查是否有这个字段
+		rhsNode, ok := b.resolveExpr(mapper.Src(), root)
+		if !ok {
+			return nil
+		}
+
+		lhsExpr := rhsNode.AssignExpr()
+		posStr := b.fset.Position(mapper.Pos())
+		srcType := rhsNode.ExprType().String()
+		underlyingType := mapper.GetMaskBasic().String()
+
+		if srcType != underlyingType { // mask的typedef类型必须和src类型一致
+			logger.Warnf(
+				"%v: mask/src must the same type for %v [%v], auctual type '%s','%s'",
+				posStr, lhsExpr, mapper.Mask(), srcType, underlyingType,
+			)
+
+			return nil
+		}
+
+		convNode := bmodel.NewParseMaskNode(lhs, rhsNode, mapper, b.opts)
+		return convNode
+	}()
+
+	lhsExpr := lhs.AssignExpr()
+	posStr := b.fset.Position(mapper.Pos())
+
+	// 目标字段必须是bool类型
+	if targetType := lhs.ExprType().String(); targetType != "bool" {
+		logger.Warnf(
+			"%v: not 'bool' type for %v [%v], auctual type '%s'",
+			posStr, lhsExpr, b.imports.TypeName(lhs.ExprType()), targetType,
+		)
+		return gmodel.NoMatchField{LHS: lhsExpr}, nil
+	}
+
+	if mappedNode != nil {
+		rhsExpr := mappedNode.AssignExpr()
+		logger.Printf("%v: assignment found: %v = %v", posStr, lhs, rhs)
+		return gmodel.RawAssignment{Raw: rhsExpr, Err: false}, nil
+	}
+
+	logger.Warnf("%v: no assignment for %v [%v]", posStr, lhsExpr, b.imports.TypeName(lhs.ExprType()))
+	return gmodel.NoMatchField{LHS: lhsExpr}, nil
+}
+
+func (b *assignmentBuilder) createWithBuildMaskIngore(
+	mapper *option.MaskConverter,
+) gmodel.Assignment {
+	return gmodel.RawAssignment{
+		Raw: fmt.Sprintf("// skip '%s.%s'\n", mapper.Dst().NameAt(0), mapper.GetMaskConst().Name()),
+	}
+}
+
+func (b *assignmentBuilder) createWithBuildMask(
+	lhs, rhs bmodel.Node, mapper *option.MaskConverter,
+) (gmodel.Assignment, error) {
+	mappedNode := func() bmodel.Node {
+		root := rhs
+		for ; root.Parent() != nil; root = root.Parent() {
+		}
+
+		// 检查是否有这个字段
+		rhsNode, ok := b.resolveExpr(mapper.Src(), root)
+		if !ok {
+			return nil
+		}
+
+		lhsExpr := rhsNode.AssignExpr()
+		posStr := b.fset.Position(mapper.Pos())
+
+		// 目标字段必须是bool类型
+		if srcType := rhsNode.ExprType().String(); srcType != "bool" {
+			logger.Warnf(
+				"%v: not 'bool' type for %v, auctual type '%s'",
+				posStr, lhsExpr, srcType,
+			)
+
+			return nil
+		}
+
+		convNode := bmodel.NewBuildMaskNode(lhs, rhsNode, mapper)
+		return convNode
+	}()
+
+	lhsExpr := lhs.AssignExpr()
+	posStr := b.fset.Position(mapper.Pos())
+	underlyingType := mapper.GetMaskBasic().String()
+	if targetType := lhs.ExprType().String(); targetType != underlyingType { // mask的typedef类型必须和dst类型一致
+		logger.Warnf(
+			"%v: mask/target must the same type for %v [%v], auctual type '%s','%s'",
+			posStr, lhsExpr, mapper.Mask(), targetType, underlyingType,
+		)
+
+		return gmodel.NoMatchField{LHS: lhsExpr}, nil
+	}
+
+	if mappedNode != nil {
+		rhsExpr := mappedNode.AssignExpr()
+		logger.Printf("%v: assignment found: %v = %v", posStr, lhs, rhs)
+		return gmodel.RawAssignment{Err: false, Raw: rhsExpr}, nil
+	}
+
+	logger.Warnf("%v: no assignment for %v [%v]", posStr, lhsExpr, b.imports.TypeName(lhs.ExprType()))
+	return gmodel.NoMatchField{LHS: lhsExpr, RHS: mapper.Src().NameAt(0)}, nil
 }
 
 // createWithConverter creates an assignment using the given field converter.
