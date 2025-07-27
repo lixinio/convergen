@@ -235,6 +235,150 @@ func (n ConverterNode) NullCheckExpr() string {
 	return n.AssignExpr()
 }
 
+type ParseMaskNode struct {
+	lhs, arg  Node
+	converter *option.MaskConverter
+	opts      option.Options
+}
+
+// NewParseMaskNode creates a new ParseMaskNode.
+func NewParseMaskNode(
+	lhs, arg Node,
+	converter *option.MaskConverter,
+	opts option.Options,
+) Node {
+	return ParseMaskNode{
+		lhs:       lhs,
+		arg:       arg,
+		converter: converter,
+		opts:      opts,
+	}
+}
+
+// Parent returns the container of the node or nil.
+func (n ParseMaskNode) Parent() Node {
+	return n.arg.Parent()
+}
+
+// ObjName returns the ident of the leaf element.
+// For example, it returns "Status" in both of dst.User.Status or dst.User.Status().
+func (n ParseMaskNode) ObjName() string {
+	return n.arg.ObjName()
+}
+
+// ObjNullable indicates whether the node itself is a pointer type so that it can be nil at runtime.
+func (n ParseMaskNode) ObjNullable() bool {
+	return n.arg.ObjNullable()
+}
+
+// ExprType returns the evaluated result type of the node.
+// For example, it returns the type that "dst.User.Status()" returns.
+// An expression may be in converter form, such as "strconv.Itoa(dst.User.Status())".
+func (n ParseMaskNode) ExprType() types.Type {
+	return n.arg.ExprType()
+}
+
+// ReturnsError indicates whether the expression returns an error object as the second returning value.
+func (n ParseMaskNode) ReturnsError() bool {
+	return false
+}
+
+// AssignExpr returns a value evaluate expression for assignment.
+// For example, it returns "dst.User.Name", "dst.User.Status()", "strconv.Itoa(dst.User.Score())", etc.
+func (n ParseMaskNode) AssignExpr() string {
+	reciever := "src"
+	if n.opts.Receiver != "" {
+		reciever = n.opts.Receiver
+	}
+
+	return fmt.Sprintf(
+		"dst.%s = %s.Get%s(%s)\n",
+		n.lhs.ObjName(),
+		reciever,
+		n.arg.ObjName(),
+		n.converter.Mask(),
+	)
+}
+
+// MatcherExpr returns a value evaluate expression for assignment but omits the root variable name.
+// For example, it returns "User.Status()" in "dst.User.Status()".
+func (n ParseMaskNode) MatcherExpr() string {
+	return n.arg.MatcherExpr()
+}
+
+// NullCheckExpr returns a value evaluate expression for null check conditional.
+// For example, it returns "dst.Node.Child".
+func (n ParseMaskNode) NullCheckExpr() string {
+	return n.AssignExpr()
+}
+
+type BuildMaskNode struct {
+	lhs, arg  Node
+	converter *option.MaskConverter
+}
+
+// NewBuildMaskNode creates a new BuildMaskNode.
+func NewBuildMaskNode(
+	lhs, rhs Node,
+	converter *option.MaskConverter,
+) Node {
+	return BuildMaskNode{
+		lhs:       lhs,
+		arg:       rhs,
+		converter: converter,
+	}
+}
+
+// Parent returns the container of the node or nil.
+func (n BuildMaskNode) Parent() Node {
+	return n.arg.Parent()
+}
+
+// ObjName returns the ident of the leaf element.
+// For example, it returns "Status" in both of dst.User.Status or dst.User.Status().
+func (n BuildMaskNode) ObjName() string {
+	return n.arg.ObjName()
+}
+
+// ObjNullable indicates whether the node itself is a pointer type so that it can be nil at runtime.
+func (n BuildMaskNode) ObjNullable() bool {
+	return n.arg.ObjNullable()
+}
+
+// ExprType returns the evaluated result type of the node.
+// For example, it returns the type that "dst.User.Status()" returns.
+// An expression may be in converter form, such as "strconv.Itoa(dst.User.Status())".
+func (n BuildMaskNode) ExprType() types.Type {
+	return n.arg.ExprType()
+}
+
+// ReturnsError indicates whether the expression returns an error object as the second returning value.
+func (n BuildMaskNode) ReturnsError() bool {
+	return false
+}
+
+// AssignExpr returns a value evaluate expression for assignment.
+// For example, it returns "dst.User.Name", "dst.User.Status()", "strconv.Itoa(dst.User.Score())", etc.
+func (n BuildMaskNode) AssignExpr() string {
+	mask := n.converter.Mask()
+	return fmt.Sprintf(
+		"dst.Set%s(%s, %s)\n",
+		n.lhs.ObjName(), n.arg.AssignExpr(), mask,
+	)
+}
+
+// MatcherExpr returns a value evaluate expression for assignment but omits the root variable name.
+// For example, it returns "User.Status()" in "dst.User.Status()".
+func (n BuildMaskNode) MatcherExpr() string {
+	return n.arg.MatcherExpr()
+}
+
+// NullCheckExpr returns a value evaluate expression for null check conditional.
+// For example, it returns "dst.Node.Child".
+func (n BuildMaskNode) NullCheckExpr() string {
+	return n.AssignExpr()
+}
+
 // TypecastEntry is a node that represents a typecast expression.
 type TypecastEntry struct {
 	inner Node

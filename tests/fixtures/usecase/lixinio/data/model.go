@@ -46,3 +46,9 @@ type ClientProvider struct {
 	Uri          string
 	InternalFlag int
 }
+
+type DbPropertyMask struct {
+	DbID           int
+	DbPropertyMask int64
+	DbMask         uint64
+}

@@ -13,6 +13,7 @@ import (
 	"github.com/reedom/convergen/pkg/logger"
 	"github.com/reedom/convergen/pkg/option"
 	"github.com/reedom/convergen/pkg/util"
+	"golang.org/x/tools/go/packages"
 )
 
 var (
@@ -33,7 +34,7 @@ func (p *Parser) parseNotationInComments(notations []*ast.Comment, validOps map[
 
 	for _, n := range notations {
 		m := reNotation.FindStringSubmatch(n.Text)
-		if m == nil || len(m) < 2 {
+		if len(m) < 2 {
 			return fmt.Errorf("invalid notation format %#v", m)
 		}
 
@@ -173,6 +174,45 @@ func (p *Parser) parseNotationInComments(notations []*ast.Comment, validOps map[
 				return err
 			}
 			opts.PostProcess = pp
+		case "parsemask":
+			if len(args) < 3 {
+				return logger.Errorf("%v: needs <maskField> <flagField> <mask>", p.fset.Position(n.Pos()))
+			}
+
+			src := args[0]
+			dst := args[1]
+			mask := args[2]
+			converter := option.NewMaskConverter(mask, src, dst, n.Pos())
+
+			opts.ParseMaskConverters = append(opts.ParseMaskConverters, converter)
+		case "buildmask":
+			if len(args) < 3 {
+				return logger.Errorf("%v: needs <maskField> <flagField> <mask>", p.fset.Position(n.Pos()))
+			}
+
+			src := args[1]
+			dst := args[0]
+			mask := args[2]
+			converter := option.NewMaskConverter(mask, src, dst, n.Pos())
+			opts.BuildMaskConverters = append(opts.BuildMaskConverters, converter)
+		case "mask:ext":
+			if len(args) < 1 {
+				return logger.Errorf("%v: needs <fieldQueryVarible>", p.fset.Position(n.Pos()))
+			}
+			opts.MaskExtension = &option.MaskExtension{Name: args[0]}
+		case "mask":
+			if len(args) < 1 {
+				return logger.Errorf("%v: needs <fieldQueryVarible> skipField...", p.fset.Position(n.Pos()))
+			}
+			opts.Mask = &option.Mask{
+				MaskExtension: &option.MaskExtension{Name: args[0]},
+				SkipFields:    map[string]int{},
+			}
+			for idx, arg := range args {
+				if idx > 0 {
+					opts.Mask.SkipFields[arg] = 0
+				}
+			}
 		default:
 			fmt.Printf("%v: unknown notation %v\n", p.fset.Position(n.Pos()), m[1])
 		}
@@ -190,25 +230,31 @@ func (p *Parser) parseNotationInComments(notations []*ast.Comment, validOps map[
 // It returns the scope and object of the type if found, or nil if not found.
 // typeName is the fully qualified name of the type, including package name.
 // pos is the position where the lookup occurs.
-func (p *Parser) lookupType(typeName string, pos token.Pos) (*types.Scope, types.Object) {
+func (p *Parser) lookupType(
+	typeName string, pos token.Pos,
+) (*types.Scope, types.Object, *packages.Package) {
 	names := strings.Split(typeName, ".")
 	if len(names) == 1 {
 		inner := p.pkg.Types.Scope().Innermost(pos)
-		return inner.LookupParent(names[0], pos)
+		if s, o := inner.LookupParent(names[0], pos); s != nil {
+			return s, o, p.pkg
+		}
+
+		return nil, nil, nil
 	}
 
 	pkgPath, ok := p.imports.LookupPath(names[0])
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 	pkg, ok := p.pkg.Imports[pkgPath]
 	if !ok {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	scope := pkg.Types.Scope()
 	obj := scope.Lookup(names[1])
-	return scope, obj
+	return scope, obj, pkg
 }
 
 // resolveConverters resolves the types and error flag of the FieldConverter `conv` by
@@ -253,7 +299,7 @@ func (p *Parser) resolveConverters(generatingMethods []*bmodel.MethodEntry, conv
 // with the given name and position.
 // It checks that the function is a valid converter function and can be used as such.
 func (p *Parser) lookupConverterFunc(funcName string, pos token.Pos) (argType, retType types.Type, retError bool, err error) {
-	_, obj := p.lookupType(funcName, pos)
+	_, obj, _ := p.lookupType(funcName, pos)
 	if obj == nil {
 		err = fmt.Errorf("%v: function %v not found", p.fset.Position(pos), funcName)
 		return
@@ -301,7 +347,7 @@ func (p *Parser) lookupConverterFunc(funcName string, pos token.Pos) (argType, r
 // as a manipulator function for a certain option. It returns a new Manipulator instance
 // on success, and an error on failure.
 func (p *Parser) lookupManipulatorFunc(funcName, optName string, pos token.Pos) (*option.Manipulator, error) {
-	_, obj := p.lookupType(funcName, pos)
+	_, obj, _ := p.lookupType(funcName, pos)
 	if obj == nil {
 		return nil, logger.Errorf("%v: function %v not found", p.fset.Position(pos), funcName)
 	}

@@ -87,14 +87,17 @@ func (p *FunctionBuilder) CreateFunction(m *bmodel.MethodEntry) (*gmodel.Functio
 		srcVar.Name = m.Opts.Receiver
 	}
 
-	var assignments []gmodel.Assignment
-	var err error
+	var (
+		assignments    []gmodel.Assignment
+		postAssignment gmodel.Assignment
+		err            error
+	)
 	if m.Opts.Reverse {
 		builder := newAssignmentBuilder(p, m, srcVar, dstVar)
-		assignments, err = builder.build(src, dst)
+		assignments, postAssignment, err = builder.build(src, dst, m.RetError())
 	} else {
 		builder := newAssignmentBuilder(p, m, dstVar, srcVar)
-		assignments, err = builder.build(dst, src)
+		assignments, postAssignment, err = builder.build(dst, src, m.RetError())
 	}
 	if err != nil {
 		return nil, err
@@ -110,17 +113,18 @@ func (p *FunctionBuilder) CreateFunction(m *bmodel.MethodEntry) (*gmodel.Functio
 	}
 
 	fn := &gmodel.Function{
-		Name:          m.Method.Name(),
-		Comments:      comments,
-		Receiver:      m.Opts.Receiver,
-		FuncCutPrefix: m.Opts.FuncCutPrefix,
-		Src:           srcVar,
-		Dst:           dstVar,
-		DstVarStyle:   m.Opts.Style,
-		RetError:      m.RetError(),
-		Assignments:   assignments,
-		PreProcess:    preProcess,
-		PostProcess:   postProcess,
+		Name:           m.Method.Name(),
+		Comments:       comments,
+		Receiver:       m.Opts.Receiver,
+		FuncCutPrefix:  m.Opts.FuncCutPrefix,
+		Src:            srcVar,
+		Dst:            dstVar,
+		DstVarStyle:    m.Opts.Style,
+		RetError:       m.RetError(),
+		Assignments:    assignments,
+		PreProcess:     preProcess,
+		PostProcess:    postProcess,
+		PostAssignment: postAssignment,
 	}
 
 	return fn, nil

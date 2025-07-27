@@ -60,8 +60,8 @@ type Convergen interface {
 	// 调用成员函数
 	// :method ToBiz Provider
 	// :method ToBiz Provider2 Provider3
-	// :method ToBiz Uris[]
-	ClientToBiz(*Client) *biz.Client
+	// :method:err ToBiz Uris[]
+	ClientToBiz(*Client) (*biz.Client, error)
 	// :typecast
 	// 忽略字段
 	// :skip ClientSecret
@@ -82,7 +82,7 @@ type Convergen interface {
 	// :conv strings.ToUpper Url Uri
 	// 使用成员函数, 函数名去掉前缀(ClientRedirectUri, 就保留 ToBiz)
 	// :recv client ClientRedirectUri
-	ClientRedirectUriToBiz(*ClientRedirectUri) *biz.ClientRedirectUri
+	ClientRedirectUriToBiz(*ClientRedirectUri) (*biz.ClientRedirectUri, error)
 	// 映射并转换
 	// :conv strings.ToUpper Uri Url
 	// :preprocess prepareEmpty
