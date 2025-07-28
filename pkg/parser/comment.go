@@ -175,24 +175,30 @@ func (p *Parser) parseNotationInComments(notations []*ast.Comment, validOps map[
 			}
 			opts.PostProcess = pp
 		case "parsemask":
-			if len(args) < 3 {
+			if len(args) < 2 {
 				return logger.Errorf("%v: needs <maskField> <flagField> <mask>", p.fset.Position(n.Pos()))
 			}
 
 			src := args[0]
 			dst := args[1]
-			mask := args[2]
+			mask := args[1]
+			if len(args) > 2 {
+				mask = args[2]
+			}
 			converter := option.NewMaskConverter(mask, src, dst, n.Pos())
 
 			opts.ParseMaskConverters = append(opts.ParseMaskConverters, converter)
 		case "buildmask":
-			if len(args) < 3 {
+			if len(args) < 2 {
 				return logger.Errorf("%v: needs <maskField> <flagField> <mask>", p.fset.Position(n.Pos()))
 			}
 
 			src := args[1]
 			dst := args[0]
-			mask := args[2]
+			mask := args[1]
+			if len(args) > 2 {
+				mask = args[2]
+			}
 			converter := option.NewMaskConverter(mask, src, dst, n.Pos())
 			opts.BuildMaskConverters = append(opts.BuildMaskConverters, converter)
 		case "mask:ext":
